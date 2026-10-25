@@ -253,6 +253,8 @@ async def bridge_websocket(
             upstream_url,
             additional_headers=upstream_headers or None,
             subprotocols=subprotocols,
+            # The inner server owns its frame limits; do not impose a lower one.
+            max_size=None,
         ) as upstream_ws:
             if accept_client:
                 await client_ws.accept(subprotocol=upstream_ws.subprotocol)
