@@ -251,14 +251,33 @@ class TestUsageNormalization:
 
         assert snapshot == UsageSnapshot(prompt_tokens=100, completion_tokens=50)
 
-    def test_responses_api_shape_is_normalized(self):
+    @pytest.mark.parametrize(
+        ("input_details", "cache_read", "cache_write"),
+        [
+            (None, 0, 0),
+            ({}, 0, 0),
+            ({"cached_tokens": 25}, 25, 0),
+            ({"cached_tokens": 25, "cache_write_tokens": None}, 25, 0),
+            ({"cached_tokens": 25, "cache_write_tokens": 0}, 25, 0),
+            ({"cached_tokens": 25, "cache_write_tokens": 30}, 25, 30),
+        ],
+        ids=["no-details", "empty-details", "no-writes", "null", "zero", "writes"],
+    )
+    def test_responses_api_shape_is_normalized(
+        self,
+        input_details: dict[str, int | None] | None,
+        cache_read: int,
+        cache_write: int,
+    ):
         snapshot = normalize_usage(
-            ResponseAPIUsage(
-                input_tokens=100,
-                output_tokens=50,
-                total_tokens=150,
-                input_tokens_details=InputTokensDetails(cached_tokens=25),
-                output_tokens_details=OutputTokensDetails(reasoning_tokens=7),
+            ResponseAPIUsage.model_validate(
+                {
+                    "input_tokens": 100,
+                    "output_tokens": 50,
+                    "total_tokens": 150,
+                    "input_tokens_details": input_details,
+                    "output_tokens_details": {"reasoning_tokens": 7},
+                }
             )
         )
 
@@ -266,8 +285,8 @@ class TestUsageNormalization:
             prompt_tokens=100,
             completion_tokens=50,
             reasoning_tokens=7,
-            cache_read_tokens=25,
-            cache_write_tokens=0,
+            cache_read_tokens=cache_read,
+            cache_write_tokens=cache_write,
         )
 
     def test_absent_usage_normalizes_to_none(self):
@@ -284,7 +303,9 @@ class TestUsageNormalization:
                 input_tokens=30,
                 output_tokens=9,
                 total_tokens=39,
-                input_tokens_details=InputTokensDetails(cached_tokens=4),
+                input_tokens_details=InputTokensDetails.model_validate(
+                    {"cached_tokens": 4, "cache_write_tokens": 6}
+                ),
                 output_tokens_details=OutputTokensDetails(reasoning_tokens=3),
             ),
         )
@@ -298,7 +319,7 @@ class TestUsageNormalization:
         assert token_usage.completion_tokens == 9
         assert token_usage.reasoning_tokens == 3
         assert token_usage.cache_read_tokens == 4
-        assert token_usage.cache_write_tokens == 0
+        assert token_usage.cache_write_tokens == 6
 
     def test_log_usage_summary_comes_from_the_same_snapshot(self, mock_metrics):
         """The logged usage summary and metrics cannot disagree."""

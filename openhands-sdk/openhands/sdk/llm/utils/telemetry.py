@@ -115,6 +115,11 @@ def normalize_usage(usage: Usage | ResponseAPIUsage | None) -> UsageSnapshot | N
                 if input_details is not None
                 else 0
             ),
+            cache_write_tokens=(
+                int((input_details.model_extra or {}).get("cache_write_tokens") or 0)
+                if input_details is not None
+                else 0
+            ),
         )
 
     return None
